@@ -1,2 +1,2 @@
-# grsec
-grsecurity stuff
+grsec custom kernels
+
