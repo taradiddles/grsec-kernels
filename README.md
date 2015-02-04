@@ -31,11 +31,11 @@ building
 
 as usual - unpack kernel, patch with grsec, copy config
 
-in scripts/kconfig/Makefile, add -ltinfo to HOSTLOADLIBES_mconf:
+if you use 'make menuconfig' and get an error, add -ltinfo to HOSTLOADLIBES_mconf in scripts/kconfig/Makefile:
 
 	HOSTLOADLIBES_mconf   = $(shell $(CONFIG_SHELL) $(check-lxdialog) -ldflags $(HOSTCC)) -ltinfo
 
-you'll _need_ to specify the path devtoolset's binaries before building
+don't forget to specify the path devtoolset's binaries before building (better to include that in your build user's bashrc).
 
 	PATH=/opt/rh/devtoolset-2/root/usr/bin/:$PATH
 	export PATH
