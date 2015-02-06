@@ -33,6 +33,10 @@ http://linux.web.cern.ch/linux/devtoolset/
 building
 --------
 
+you can use the build_latest shell script to automate building, it will automatically fetch the latest kernel and grsecurity patches, and optionaly build a kernel with a supplied .config file
+
+otherwise the manual steps are:
+
 as usual - unpack kernel, patch with grsec, copy config
 
 if you use 'make menuconfig' and get an error, add -ltinfo to HOSTLOADLIBES_mconf in scripts/kconfig/Makefile:
