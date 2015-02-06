@@ -18,6 +18,9 @@
 #
 # ( https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.14.tar.xz )
 
+# note: the script doesn't delete anything and will when files/folders
+#  already exist
+
 GR_DIR=/home/build/kernel-grsec/automate
 GR_BZIMAGE_DIR=$GR_DIR/target
 MAKE_FLAGS=""
