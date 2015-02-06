@@ -70,9 +70,10 @@ __build() {
 	make -C "$GR_DIR/linux-$K_VER" oldnoconfig || err "make oldnoconfig failed"
 	disp "make"
 	make -C "$GR_DIR/linux-$K_VER" $MAKE_FLAGS || err "'make $MAKE_FLAGS' failed"
+	mkdir -p "$GR_BZIMAGE_DIR"
 	cp "$GR_DIR/linux-$K_VER/arch/x86/boot/bzImage" "$GR_BZIMAGE_DIR/$target_name" ||
 		err "Couldn't copy $GR_DIR/linux-$K_VER/arch/x86/boot/bzImage to $GR_BZIMAGE_DIR/$target_name"
-	disp "bzImage is $GR_BZIMAGE_DIR/$target_name"
+	disp "bzImage: $GR_BZIMAGE_DIR/$target_name"
 
 }
 
