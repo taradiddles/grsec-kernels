@@ -12,6 +12,9 @@
 #
 # note: the script doesn't delete anything and will when files/folders
 #   already exist
+#
+# you'll need to import the relevant keys to for kernel gpg verify
+# ( https://www.kernel.org/category/signatures.html )
 
 
 GR_DIR="/home/build/kernel-grsec/automate"
