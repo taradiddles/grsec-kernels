@@ -18,22 +18,15 @@
 # DISABLE_GPG_GRSEC
 # DISABLE_GPG_KERNEL
 # 
-# notes:
-#
-# - the script doesn't download the 3.14 kernel, so you MUST
-#   have linux-3.14.tar.xz in $GR_DIR
-#   ( https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.14.tar.xz )
-# 
-#   side-effect: it's up to you to verify the 3.14 sig
-#   ( https://www.kernel.org/signature.html )
-#
-# - the script doesn't delete anything and will when files/folders
+# note: the script doesn't delete anything and will when files/folders
 #   already exist
 
 
 GR_DIR="/home/build/kernel-grsec/automate"
 GR_BZIMAGE_DIR="$GR_DIR/target"
 MAKE_FLAGS=""
+
+K_REL=14	# which 3.x stable version to use
 
 # comment if you don't use devtoolset (for gcc plugin)
 PATH=/opt/rh/devtoolset-2/root/usr/bin/:$PATH
@@ -73,14 +66,14 @@ __prep() {
 
 	# untar / patch
 	disp "Decompressing kernel into $GR_DIR"
-	tar -xJf "$GR_DIR/linux-3.14.tar.xz" -C "$GR_DIR" || err "Couldn't tar xJf $GR_DIR/linux-3.14.tar.xz"
+	tar -xJf "$GR_DIR/linux-3.${K_REL}.tar.xz" -C "$GR_DIR" || err "Couldn't tar xJf $GR_DIR/linux-3.${K_REL}.tar.xz"
 	disp "Patching kernel to version $K_VER"
-	unxz -c "$GR_DIR/$K_PATCH" | patch -s -d "$GR_DIR/linux-3.14" -p1 || err "Couldn't patch kernel to $K_VER"
+	unxz -c "$GR_DIR/$K_PATCH" | patch -s -d "$GR_DIR/linux-3.${K_REL}" -p1 || err "Couldn't patch kernel to $K_VER"
 	disp "Patching kernel with grsecurity"
-	patch -s -d "$GR_DIR/linux-3.14" -p1 < "$GR_DIR/$GR_PATCH" || err "Couldn't patch kernel with grsecurity"
+	patch -s -d "$GR_DIR/linux-3.${K_REL}" -p1 < "$GR_DIR/$GR_PATCH" || err "Couldn't patch kernel with grsecurity"
 	disp "Fixing menuconfig"
-	sed -i -e '/^HOSTLOADLIBES_mconf.*HOSTCC)/ s/$/ -ltinfo/' "$GR_DIR/linux-3.14/scripts/kconfig/Makefile"
-	mv "$GR_DIR/linux-3.14" "$GR_DIR/linux-$K_VER"
+	sed -i -e '/^HOSTLOADLIBES_mconf.*HOSTCC)/ s/$/ -ltinfo/' "$GR_DIR/linux-3.${K_REL}/scripts/kconfig/Makefile"
+	mv "$GR_DIR/linux-3.${K_REL}" "$GR_DIR/linux-$K_VER"
 	disp "Building dir is $GR_DIR/linux-$K_VER"
 
 }
@@ -113,8 +106,7 @@ K_CONFIG=$1
 #------------------------------
 # misc checks
 [ -d "$GR_DIR" ] || err "No such dir: $GR_DIR"
-[ -e "$GR_DIR/linux-3.14.tar.xz" ] || err "Missing linux-3.14.tar.xz in $GR_DIR"
-[ -e "$GR_DIR/linux-3.14" ] && err "Directory $GR_DIR/linux-3.14 exists ; remove first"
+[ -e "$GR_DIR/linux-3.${K_REL}" ] && err "Directory $GR_DIR/linux-3.${K_REL} exists ; remove first"
 
 #------------------------------
 # latest grsecurity patches
@@ -129,7 +121,19 @@ fi
 
 #------------------------------
 # latest kernel
-K_VER=$(curl -s https://www.kernel.org/releases.json | sed -ne 's/.*version.*\(3\.14\.[0-9]\+\)".*/\1/p')
+K_STABLE="linux-3.${K_REL}.tar.xz"
+K_STABLE_SIG="linux-3.${K_REL}.tar.sign"
+disp "Fetching kernel $K_STABLE"
+fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_STABLE" "$GR_DIR/$K_STABLE"
+fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_STABLE_SIG" "$GR_DIR/$K_STABLE_SIG"
+if [ -z "$DISABLE_GPG_KERNEL" ]; then
+	unxz -c "$GR_DIR/$K_STABLE" | gpg2 -q --verify "$GR_DIR/$K_STABLE_SIG" -  ||
+		err "Couldn't verify kernel sig"
+fi
+
+#------------------------------
+# latest kernel patch
+K_VER=$(curl -s https://www.kernel.org/releases.json | sed -ne "s/.*version.*\(3\.$K_REL\.[0-9]\+\)\".*/\1/p")
 [ -z "$K_VER" ] && err "Empty kernel version"
 K_PATCH="patch-${K_VER}.xz"
 K_PATCH_SIG="patch-${K_VER}.sign"
