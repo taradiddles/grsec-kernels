@@ -109,7 +109,7 @@ K_CONFIG=$1
 [ -e "$GR_DIR/linux-3.${K_REL}" ] && err "Directory $GR_DIR/linux-3.${K_REL} exists ; remove first"
 
 #------------------------------
-# latest grsecurity patches
+# latest grsecurity patch
 GR_PATCH=$(curl -s https://grsecurity.net/latest_stable2_patch)
 [ -z "$GR_PATCH" ] && err "Empty grsecurity version"
 disp "Fetching grsecurity latest patch - $GR_PATCH"
@@ -120,7 +120,7 @@ if [ -z "$DISABLE_GPG_GRSEC" ]; then
 fi
 
 #------------------------------
-# latest kernel
+# 3.${K_REL} kernel
 K_STABLE="linux-3.${K_REL}.tar.xz"
 K_STABLE_SIG="linux-3.${K_REL}.tar.sign"
 disp "Fetching kernel $K_STABLE"
@@ -132,7 +132,7 @@ if [ -z "$DISABLE_GPG_KERNEL" ]; then
 fi
 
 #------------------------------
-# latest kernel patch
+# latest 3.${K_REL}.y kernel patch
 K_VER=$(curl -s https://www.kernel.org/releases.json | sed -ne "s/.*version.*\(3\.$K_REL\.[0-9]\+\)\".*/\1/p")
 [ -z "$K_VER" ] && err "Empty kernel version"
 K_PATCH="patch-${K_VER}.xz"
