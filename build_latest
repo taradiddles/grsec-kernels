@@ -11,20 +11,31 @@
 # prepare the environment and build with the supplied kernel config
 #
 # you can skip the prepare step by setting the env variable
-# DISABLE_PREP to some empty value
-# 
-# the script doesn't download the 3.14 kernel, so you MUST
-# have linux-3.14.tar.xz in $GR_DIR
+# DISABLE_PREP to some value (just needs to be non-empty)
 #
-# ( https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.14.tar.xz )
+# you can skip the gpg sig check by setting the following env
+# variable to some value
+# DISABLE_GPG_GRSEC
+# DISABLE_GPG_KERNEL
+# 
+# notes:
+#
+# - the script doesn't download the 3.14 kernel, so you MUST
+#   have linux-3.14.tar.xz in $GR_DIR
+#   ( https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.14.tar.xz )
+# 
+#   side-effect: it's up to you to verify the 3.14 sig
+#   ( https://www.kernel.org/signature.html )
+#
+# - the script doesn't delete anything and will when files/folders
+#   already exist
 
-# note: the script doesn't delete anything and will when files/folders
-#  already exist
 
-GR_DIR=/home/build/kernel-grsec/automate
-GR_BZIMAGE_DIR=$GR_DIR/target
+GR_DIR="/home/build/kernel-grsec/automate"
+GR_BZIMAGE_DIR="$GR_DIR/target"
 MAKE_FLAGS=""
 
+# comment if you don't use devtoolset (for gcc plugin)
 PATH=/opt/rh/devtoolset-2/root/usr/bin/:$PATH
 export PATH
 export LDFLAGS=-L/opt/rh/devtoolset-2/root/usr/lib
@@ -42,6 +53,19 @@ err() {
 
 disp() {
 	echo -e "$*" >&2
+}
+
+fetchfile() {
+	local url=$1
+	local dest=$2
+	local curlopts=$3
+	[ -z "$url" -o -z "$dest" ] && err "Usage: fetchfile url dest"
+	if [ -e "$dest" ]; then
+		disp "   $dest exists"
+	else
+		curl $curlopts "$url" -o "$dest" || err "   couldn't download $url"
+		[ -e "$dest" ] || err "   curl error"
+	fi
 }
 
 __prep() {
@@ -63,17 +87,17 @@ __prep() {
 
 __build() {
 	local target_name="$(basename "$K_CONFIG")-$K_VER-$(date +%s)"
-#	[ -e "$K_CONFIG" ] || err "'$K_CONFIG' doesn't exist"
-#	[ -e "$GR_DIR/linux-$K_VER/.config" ] &&
-#		err "$GR_DIR/linux-$K_VER/.config already exists"
-#	cp "$K_CONFIG" $GR_DIR/linux-$K_VER/.config ||
-#		err "Couldn't copy '$K_CONFIG' to $GR_DIR/linux-$K_VER/.config"
-#	# use make oldnoconfig ; assume the config is for that specific kernel version
-#	disp "make oldnoconfig"
-#	make -C "$GR_DIR/linux-$K_VER" oldnoconfig || err "make oldnoconfig failed"
-#	disp "make"
-#	make -C "$GR_DIR/linux-$K_VER" $MAKE_FLAGS || err "'make $MAKE_FLAGS' failed"
-#	mkdir -p "$GR_BZIMAGE_DIR"
+	[ -e "$K_CONFIG" ] || err "'$K_CONFIG' doesn't exist"
+	[ -e "$GR_DIR/linux-$K_VER/.config" ] &&
+		err "$GR_DIR/linux-$K_VER/.config already exists"
+	cp "$K_CONFIG" $GR_DIR/linux-$K_VER/.config ||
+		err "Couldn't copy '$K_CONFIG' to $GR_DIR/linux-$K_VER/.config"
+	# use make oldnoconfig ; assume the config is for that specific kernel version
+	disp "make oldnoconfig"
+	make -C "$GR_DIR/linux-$K_VER" oldnoconfig || err "make oldnoconfig failed"
+	disp "make"
+	make -C "$GR_DIR/linux-$K_VER" $MAKE_FLAGS || err "'make $MAKE_FLAGS' failed"
+	mkdir -p "$GR_BZIMAGE_DIR"
 	cp "$GR_DIR/linux-$K_VER/arch/x86/boot/bzImage" "$GR_BZIMAGE_DIR/$target_name" ||
 		err "Couldn't copy $GR_DIR/linux-$K_VER/arch/x86/boot/bzImage to $GR_BZIMAGE_DIR/$target_name"
 	disp "bzImage: $GR_BZIMAGE_DIR/$target_name"
@@ -86,36 +110,38 @@ K_CONFIG=$1
 
 [ -n "$K_CONFIG" -a ! -e "$K_CONFIG" ] && err "Kernel config $K_CONFIG doesn't exist"
 
+#------------------------------
 # misc checks
 [ -d "$GR_DIR" ] || err "No such dir: $GR_DIR"
-# https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.14.tar.xz"
 [ -e "$GR_DIR/linux-3.14.tar.xz" ] || err "Missing linux-3.14.tar.xz in $GR_DIR"
 [ -e "$GR_DIR/linux-3.14" ] && err "Directory $GR_DIR/linux-3.14 exists ; remove first"
 
-# get latest 3.0-3.14 grsecurity patch
+#------------------------------
+# latest grsecurity patches
 GR_PATCH=$(curl -s https://grsecurity.net/latest_stable2_patch)
-#GR_PATCH="grsecurity-3.0-3.14.31-201502052352.patch"
 [ -z "$GR_PATCH" ] && err "Empty grsecurity version"
 disp "Fetching grsecurity latest patch - $GR_PATCH"
-if [ -e "$GR_DIR/$GR_PATCH" ]; then
-	disp "   exists"
-else
-	curl "https://grsecurity.net/stable/$GR_PATCH" -o "$GR_DIR/$GR_PATCH" ||
-		err "Couldn't download"
+fetchfile "https://grsecurity.net/stable/$GR_PATCH" "$GR_DIR/$GR_PATCH"
+fetchfile "https://grsecurity.net/stable/$GR_PATCH.sig" "$GR_DIR/$GR_PATCH.sig"
+if [ -z "$DISABLE_GPG_GRSEC" ]; then
+	gpg -q --verify "$GR_DIR/$GR_PATCH.sig" || err "Couldn't verify grsecurity sig"
 fi
 
-# get latest 3.14.x kernel patch (based on 3.14)
-# "version": "3.14.31", 
+#------------------------------
+# latest kernel
 K_VER=$(curl -s https://www.kernel.org/releases.json | sed -ne 's/.*version.*\(3\.14\.[0-9]\+\)".*/\1/p')
-[ -z "$GR_PATCH" ] && err "Empty grsecurity version"
+[ -z "$K_VER" ] && err "Empty kernel version"
 K_PATCH="patch-${K_VER}.xz"
+K_PATCH_SIG="patch-${K_VER}.sign"
 disp "Fetching latest kernel patch - $K_PATCH"
-if [ -e "$GR_DIR/$K_PATCH" ]; then
-	disp "   exists"
-else
-	curl "https://www.kernel.org/pub/linux/kernel/v3.x/$K_PATCH" -o "$GR_DIR/$K_PATCH" ||
-		err "Couldn't download"
+fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_PATCH" "$GR_DIR/$K_PATCH"
+fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_PATCH_SIG" "$GR_DIR/$K_PATCH_SIG"
+if [ -z "$DISABLE_GPG_KERNEL" ]; then
+	unxz -c "$GR_DIR/$K_PATCH" | gpg2 -q --verify "$GR_DIR/$K_PATCH_SIG" -  ||
+		err "Couldn't verify kernel patch sig"
 fi
+
+#------------------------------
 
 # don't prepare the build environment if DISABLE_PREP is set (debugging)
 [ -z "$DISABLE_PREP" ] && __prep || disp "DISAPLE_PREP set - assuming build environment was set up"
