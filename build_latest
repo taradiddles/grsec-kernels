@@ -56,12 +56,14 @@ fetchfile() {
 	local url=$1
 	local dest=$2
 	local curlopts=$3
+	[ -n "$3" ] && echo $1 $2 $3 && exit 1
 	[ -z "$url" -o -z "$dest" ] && err "Usage: fetchfile url dest"
 	if [ -e "$dest" ]; then
 		disp "   $dest exists"
 	else
-		curl $curlopts "$url" -o "$dest" || err "   couldn't download $url"
-		[ -e "$dest" ] || err "   curl error"
+		#curl -s "$url" -o "$dest" || err "   couldn't download $url"
+		wget -q -O "$dest" "$url" || err "   couldn't download $url"
+		[ -e "$dest" ] || err "   wget error"
 	fi
 }
 
@@ -111,13 +113,13 @@ K_CONFIG=$1
 #------------------------------
 # get latest versions
 disp "Getting latest 3.${K_MINOR} patch version"
-K_VER=$(curl -s https://www.kernel.org/releases.json | sed -ne "s/.*version.*\(3\.$K_MINOR\.[0-9]\+\)\".*/\1/p")
+K_VER=$(wget -qO- https://www.kernel.org/releases.json | sed -ne "s/.*version.*\(3\.$K_MINOR\.[0-9]\+\)\".*/\1/p")
 disp "   $K_VER"
 [ -z "$K_VER" ] && err "Empty kernel version"
 [ -e "$GR_DIR/linux-$K_VER" ] && err "Directory $GR_DIR/linux-$K_VER exists ; remove first"
 
 disp "Getting latest grsecurity patch name"
-GR_PATCH=$(curl -s https://grsecurity.net/latest_stable2_patch)
+GR_PATCH=$(wget -qO- https://grsecurity.net/latest_stable2_patch)
 [ -z "$GR_PATCH" ] && err "Empty grsecurity version"
 disp "   $GR_PATCH"
 
