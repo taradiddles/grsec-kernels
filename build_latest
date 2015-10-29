@@ -21,15 +21,19 @@ GR_DIR="/home/build/kernel-grsec/automate"
 GR_BZIMAGE_DIR="$GR_DIR/target"
 MAKE_FLAGS=""
 
-K_MINOR=14		# which 3.x stable version to use
+K_MAJOR=4
+K_MINOR=2
+#GR_PATCH_TYPE="stable"
+GR_PATCH_TYPE="test"
+
 
 # debug stuff
 DISABLE_PREP=		# skip prep and build steps (=only download/gpgcheck)
 DISABLE_DL_GRSEC=	# skip download grsec patches
-DISABLE_DL_KMINOR=	# skip download kernel 3.x version
+DISABLE_DL_KMINOR=	# skip download kernel ${K_MAJOR}.x version
 DISABLE_DL_KPATCH=	# skip download latest kernel patch
 DISABLE_GPG_GRSEC=	# skip verify grsec sig
-DISABLE_GPG_KMINOR=	# skip verify kernel 3.x sig
+DISABLE_GPG_KMINOR=	# skip verify kernel ${K_MAJOR}.x sig
 DISABLE_GPG_KPATCH=	# skip verify kernel patch sig
 
 # comment if you don't use devtoolset (for gcc plugin)
@@ -70,14 +74,14 @@ fetchfile() {
 __prep() {
 	disp "Decompressing kernel into $GR_DIR"
 	tar -xJf "$GR_DIR/$K_STABLE" -C "$GR_DIR" || err "Couldn't tar xJf $GR_DIR/$K_STABLE"
-	[ -d "$GR_DIR/linux-3.${K_MINOR}" ] || err "No $GR_DIR/linux-3.${K_MINOR} after unxz"
+	[ -d "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}" ] || err "No $GR_DIR/linux-${K_MAJOR}.${K_MINOR} after unxz"
 	disp "Patching kernel to version $K_VER"
-	unxz -c "$GR_DIR/$K_PATCH" | patch -s -d "$GR_DIR/linux-3.${K_MINOR}" -p1 || err "Couldn't patch kernel to $K_VER"
+	unxz -c "$GR_DIR/$K_PATCH" | patch -s -d "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}" -p1 || err "Couldn't patch kernel to $K_VER"
 	disp "Patching kernel with grsecurity"
-	patch -s -d "$GR_DIR/linux-3.${K_MINOR}" -p1 < "$GR_DIR/$GR_PATCH" || err "Couldn't patch kernel with grsecurity"
+	patch -s -d "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}" -p1 < "$GR_DIR/$GR_PATCH" || err "Couldn't patch kernel with grsecurity"
 	disp "Fixing menuconfig"
-	sed -i -e '/^HOSTLOADLIBES_mconf.*HOSTCC)/ s/$/ -ltinfo/' "$GR_DIR/linux-3.${K_MINOR}/scripts/kconfig/Makefile"
-	mv "$GR_DIR/linux-3.${K_MINOR}" "$GR_DIR/linux-$K_VER"
+	sed -i -e '/^HOSTLOADLIBES_mconf.*HOSTCC)/ s/$/ -ltinfo/' "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}/scripts/kconfig/Makefile"
+	mv "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}" "$GR_DIR/linux-$K_VER"
 	disp "Building dir is $GR_DIR/linux-$K_VER"
 }
 
@@ -105,46 +109,52 @@ K_CONFIG=$1
 
 [ -n "$K_CONFIG" -a ! -e "$K_CONFIG" ] && err "Kernel config $K_CONFIG doesn't exist"
 
+
+
 #------------------------------
 # misc checks
 [ -d "$GR_DIR" ] || err "No such dir: $GR_DIR"
-[ -e "$GR_DIR/linux-3.${K_MINOR}" ] && err "Directory $GR_DIR/linux-3.${K_MINOR} exists ; remove first"
+[ -e "$GR_DIR/linux-${K_MAJOR}.${K_MINOR}" ] && err "Directory $GR_DIR/linux-${K_MAJOR}.${K_MINOR} exists ; remove first"
 
 #------------------------------
-# get latest versions
-disp "Getting latest 3.${K_MINOR} patch version"
-K_VER=$(wget -qO- https://www.kernel.org/releases.json | sed -ne "s/.*version.*\(3\.$K_MINOR\.[0-9]\+\)\".*/\1/p")
+# get kernel version
+disp "Getting latest ${K_MAJOR}.${K_MINOR} patch version"
+K_VER=$(wget -qO- https://www.kernel.org/releases.json | sed -ne "s/.*version.*\($K_MAJOR\.$K_MINOR\.[0-9]\+\)\".*/\1/p" | head -n1)
 disp "   $K_VER"
 [ -z "$K_VER" ] && err "Empty kernel version"
 [ -e "$GR_DIR/linux-$K_VER" ] && err "Directory $GR_DIR/linux-$K_VER exists ; remove first"
 
+#------------------------------
+# get grsec patch version
 disp "Getting latest grsecurity patch name"
-GR_PATCH=$(wget -qO- https://grsecurity.net/latest_stable2_patch)
+GR_PATCH_URL="https://grsecurity.net/latest_stable2_patch"
+[ "$GR_PATCH_TYPE" = "test" ] && GR_PATCH_URL="https://grsecurity.net/latest_test_patch"
+GR_PATCH=$(wget -qO- $GR_PATCH_URL)
 [ -z "$GR_PATCH" ] && err "Empty grsecurity version"
 disp "   $GR_PATCH"
 
 K_PATCH="patch-${K_VER}.xz"
 K_PATCH_SIG="patch-${K_VER}.sign"
-K_STABLE="linux-3.${K_MINOR}.tar.xz"
-K_STABLE_SIG="linux-3.${K_MINOR}.tar.sign"
+K_STABLE="linux-${K_MAJOR}.${K_MINOR}.tar.xz"
+K_STABLE_SIG="linux-${K_MAJOR}.${K_MINOR}.tar.sign"
 
 #------------------------------
-# latest grsecurity patch
+# dl grsecurity patch
 if [ -z "$DISABLE_DL_GRSEC" ]; then
 	disp "Fetching grsecurity latest patch"
-	fetchfile "https://grsecurity.net/stable/$GR_PATCH" "$GR_DIR/$GR_PATCH"
-	fetchfile "https://grsecurity.net/stable/$GR_PATCH.sig" "$GR_DIR/$GR_PATCH.sig"
+	fetchfile "https://grsecurity.net/$GR_PATCH_TYPE/$GR_PATCH" "$GR_DIR/$GR_PATCH"
+	fetchfile "https://grsecurity.net/$GR_PATCH_TYPE/$GR_PATCH.sig" "$GR_DIR/$GR_PATCH.sig"
 	if [ -z "$DISABLE_GPG_GRSEC" ]; then
 		gpg -q --verify "$GR_DIR/$GR_PATCH.sig" || err "Couldn't verify grsecurity sig"
 	fi
 fi
 
 #------------------------------
-# latest 3.${K_MINOR}.y kernel patch
+# dl ${K_MAJOR}.${K_MINOR}.y kernel patch
 if [ -z "$DISABLE_DL_KPATCH" ]; then
 	disp "Fetching latest kernel patch"
-	fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_PATCH" "$GR_DIR/$K_PATCH"
-	fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_PATCH_SIG" "$GR_DIR/$K_PATCH_SIG"
+	fetchfile "https://www.kernel.org/pub/linux/kernel/v${K_MAJOR}.x/$K_PATCH" "$GR_DIR/$K_PATCH"
+	fetchfile "https://www.kernel.org/pub/linux/kernel/v${K_MAJOR}.x/$K_PATCH_SIG" "$GR_DIR/$K_PATCH_SIG"
 	if [ -z "$DISABLE_GPG_KPATCH" ]; then
 		unxz -c "$GR_DIR/$K_PATCH" | gpg2 -q --verify "$GR_DIR/$K_PATCH_SIG" -  ||
 			err "Couldn't verify kernel patch sig"
@@ -152,11 +162,11 @@ if [ -z "$DISABLE_DL_KPATCH" ]; then
 fi
 
 #------------------------------
-# 3.${K_MINOR} kernel
+# dl ${K_MAJOR}.${K_MINOR} kernel
 if [ -z "$DISABLE_DL_KMINOR" ]; then
 	disp "Fetching kernel $K_STABLE"
-	fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_STABLE" "$GR_DIR/$K_STABLE"
-	fetchfile "https://www.kernel.org/pub/linux/kernel/v3.x/$K_STABLE_SIG" "$GR_DIR/$K_STABLE_SIG"
+	fetchfile "https://www.kernel.org/pub/linux/kernel/v${K_MAJOR}.x/$K_STABLE" "$GR_DIR/$K_STABLE"
+	fetchfile "https://www.kernel.org/pub/linux/kernel/v${K_MAJOR}.x/$K_STABLE_SIG" "$GR_DIR/$K_STABLE_SIG"
 	if [ -z "$DISABLE_GPG_KMINOR" ]; then
 		unxz -c "$GR_DIR/$K_STABLE" | gpg2 -q --verify "$GR_DIR/$K_STABLE_SIG" -  ||
 			err "Couldn't verify kernel sig"
