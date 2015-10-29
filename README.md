@@ -1,7 +1,14 @@
 grsec custom kernels
 ====================
 
-custom grsec lean kernel configs for xen and kvm guests.
+what's here ?
+--------------
+
+- a shell script that automates the building steps: download grsec patch + kernel, check sigs, compile, ...
+- sample lean .config for kvm and xen guests, with grsec enabled.
+
+various notes
+-------------
 
 guest kernels are lean and are supposed to be used for server instances.
 - works for centos 7 (not tested with other distros).
@@ -9,13 +16,10 @@ guest kernels are lean and are supposed to be used for server instances.
 - support only virtualized hardware provided by kvm/xen
 - no usb, pluggable stuff, ...
 - a few unneeded things are enabled because of my use cases but they can be removed (eg. nfs server/client).
-
-notes:
 - kvmguest: selinux still enabled to ease transition.
-- xenguest-linode: as the name implies, works on a linode host. No selinux
+- xenguest-linode: as the name implies, works on a linode host. Selinux enabled (change from previous version).
 
-if you want a full kernel rpm or ready-made packages check the following sites:
-
+other sites of interest:
 - https://github.com/el-grsecurity
 - http://pkg.tag1consulting.com/kernel/el6/x86_64 
 
@@ -28,6 +32,8 @@ the cern devtoolset-2 rpms have to be installed to be able to use the gcc plugin
 at the time of writing, it's only available for centos 6 so you'll need to set a centos 6 build environment in order to build kernels for centos 7.
 
 http://linux.web.cern.ch/linux/devtoolset/
+
+an alternative is to use a recent distribution, like fedora
 
 
 building
