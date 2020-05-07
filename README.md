@@ -1,6 +1,8 @@
 grsec custom kernels
 ====================
 
+!! OUTDATED !! - haven't used those since the grsec project closed access to their kernel patch, so use at your own risk.
+
 what's here ?
 --------------
 
